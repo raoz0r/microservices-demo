@@ -1,31 +1,133 @@
-[![Build Status](https://travis-ci.org/microservices-demo/microservices-demo.svg?branch=master)](https://travis-ci.org/microservices-demo/microservices-demo)
+# Sock Shop Deployment (Deprecated)
 
-# DEPRECATED: Sock Shop : A Microservice Demo Application
+> ⚠️ This project is no longer being maintained. The Sock Shop microservices demo, once useful for learning cloud-native development, has become outdated due to deprecated Kubernetes APIs and old Helm charts. This documentation is saved here for learning and reference. Development has moved to the [Google Cloud Platform Microservices Demo](https://github.com/GoogleCloudPlatform/microservices-demo).
 
-The application is the user-facing part of an online shop that sells socks. It is intended to aid the demonstration and testing of microservice and cloud native technologies.
+## Summary
 
-It is built using [Spring Boot](http://projects.spring.io/spring-boot/), [Go kit](http://gokit.io) and [Node.js](https://nodejs.org/) and is packaged in Docker containers.
+This document explains how the Sock Shop demo was deployed using Argo CD, Helm, and K3s. It walks through the setup process, the problems encountered, and how those problems were handled. Even though the deployment is no longer active, this write-up offers valuable lessons for students and developers working with Kubernetes and continuous delivery tools.
 
-You can read more about the [application design](./internal-docs/design.md).
+## Project Status
 
-## Deployment Platforms
+* ❌ **Development**: Stopped
+* 🔍 **Why Deprecated**: Kubernetes 1.22 and later no longer support some of the APIs used by this demo. Also, its Helm charts are not actively updated.
+* ✅ **Use Instead**: [`GoogleCloudPlatform/microservices-demo`](https://github.com/GoogleCloudPlatform/microservices-demo)
 
-The [deploy folder](./deploy/) contains scripts and instructions to provision the application onto your favourite platform. 
+---
 
-Please let us know if there is a platform that you would like to see supported.
+## System Overview
 
-## Bugs, Feature Requests and Contributing
+* **Kubernetes**: K3s distribution
+* **Deployment Tool**: Argo CD
+* **Templating**: Helm 3
+* **Chart Path**: `deploy/kubernetes/helm-chart`
+* **Namespace**: `sock-shop`
 
-We'd love to see community contributions. We like to keep it simple and use Github issues to track bugs and feature requests and pull requests to manage contributions. See the [contribution information](.github/CONTRIBUTING.md) for more information.
+---
 
-## Screenshot
+## Deployment Steps
 
-![Sock Shop frontend](https://github.com/microservices-demo/microservices-demo.github.io/raw/master/assets/sockshop-frontend.png)
+### Argo CD Configuration
 
-## Visualizing the application
+**Git Repository:**
 
-Use [Weave Scope](http://weave.works/products/weave-scope/) or [Weave Cloud](http://cloud.weave.works/) to visualize the application once it's running in the selected [target platform](./deploy/).
+* URL: `https://github.com/raoz0r/microservices-demo.git`
+* Branch: `HEAD`
+* Chart Path: `deploy/kubernetes/helm-chart`
 
-![Sock Shop in Weave Scope](https://github.com/microservices-demo/microservices-demo.github.io/raw/master/assets/sockshop-scope.png)
+**Kubernetes Cluster:**
 
-## 
+* API URL: `https://kubernetes.default.svc`
+* Namespace: `sock-shop`
+
+**Helm Values:**
+
+* File: `values.yaml`
+* Key settings:
+
+  * `istio.enabled` set to `false`
+  * `ingress.annotations`: set to use `nginx`; hostname and TLS fields left blank
+  * Resource limits and JVM settings adjusted for each container
+
+**Sync Settings in Argo CD:**
+
+* ✅ Prune resources before reapplying
+* ✅ Only apply changes when out of sync
+* ❌ Do not automatically create the namespace (create it manually first)
+
+---
+
+## Common Issues and Fixes
+
+### 1. Invalid Helm Release Name
+
+**Error:**
+`invalid release name "sock shop"`
+
+**Solution:**
+Changed the app name to `sock-shop` to match naming rules (no spaces, lowercase, max 53 characters).
+
+---
+
+### 2. Missing Helm Dependencies
+
+**Error:**
+`found in Chart.yaml, but missing in charts/: nginx-ingress`
+
+**Fix:**
+
+```bash
+helm dependency build
+```
+
+This command downloaded missing charts and fixed the error.
+
+---
+
+### 3. Deprecated Kubernetes CRD Version
+
+**Error:**
+
+```yaml
+The Kubernetes API could not find version "v1beta1" of apiextensions.k8s.io/CustomResourceDefinition
+```
+
+**Cause:**
+The chart used an old API version (`v1beta1`) that Kubernetes stopped supporting in version 1.22.
+
+**Reference:**
+
+* [https://kubernetes.io/docs/reference/using-api/deprecation-guide/#customresourcedefinition-v122](https://kubernetes.io/docs/reference/using-api/deprecation-guide/#customresourcedefinition-v122)
+
+**Outcome:**
+Instead of upgrading the entire chart to the newer API version (`v1`), the project was dropped in favor of a more modern and maintained alternative.
+
+---
+
+## Clean-up Instructions
+
+To fully remove all components of this deployment:
+
+```bash
+# Delete project files
+rm -rf microservices-demo
+
+# Clear Helm cache
+rm -rf ~/.cache/helm/repository/nginx-ingress*
+
+# Delete the namespace from Kubernetes
+kubectl delete namespace sock-shop
+
+# Check that it's gone
+kubectl get ns
+kubectl get all --all-namespaces | grep sock
+
+# Remove the app from Argo CD
+argocd app list
+argocd app delete sock-shop --cascade
+```
+
+---
+
+## License
+
+This repository is for learning and documentation purposes. No license restrictions apply.
